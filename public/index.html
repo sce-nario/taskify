@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taskify - Task Manager</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>Taskify</h1>
+            <p>Plan, prioritize, and complete your most important work in a calm, modern workspace.</p>
+        </header>
+
+        <form id="task-form" class="task-form">
+            <h2>Add New Task</h2>
+            <input type="text" id="title" placeholder="Task Title" required>
+            <textarea id="description" placeholder="Description"></textarea>
+            <div class="form-row">
+                <input type="date" id="dueDate">
+                <select id="status">
+                    <option value="pending">Pending</option>
+                    <option value="in-progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <select id="priority">
+                    <option value="low">Low Priority</option>
+                    <option value="medium" selected>Medium Priority</option>
+                    <option value="high">High Priority</option>
+                </select>
+                <input type="text" id="category" placeholder="Category (optional)">
+            </div>
+            <button type="submit">Add Task</button>
+        </form>
+
+        <section class="task-section">
+            <div class="section-header">
+                <h2>Tasks</h2>
+                <span class="task-count" id="task-count"></span>
+            </div>
+            <div class="task-toolbar">
+                <input type="search" id="task-search" placeholder="Search tasks...">
+                <select id="filter-status">
+                    <option value="all">All Statuses</option>
+                    <option value="pending">Pending</option>
+                    <option value="in-progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                </select>
+                <select id="filter-priority">
+                    <option value="all">All Priorities</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                </select>
+                <select id="sort-tasks">
+                    <option value="due">Sort by due date</option>
+                    <option value="priority">Sort by priority</option>
+                    <option value="created">Sort by newest</option>
+                </select>
+            </div>
+            <div class="task-metrics">
+                <div class="metric"><strong id="pending-count">0</strong> Pending</div>
+                <div class="metric"><strong id="in-progress-count">0</strong> In Progress</div>
+                <div class="metric"><strong id="completed-count">0</strong> Completed</div>
+                <button id="clear-completed" type="button">Clear Completed</button>
+            </div>
+            <ul id="task-list" class="task-list"></ul>
+        </section>
+    </div>
+
+    <script>
+        const API_URL = window.location.protocol === 'file:' ? 'http://localhost:3000/api/tasks' : '/api/tasks';
+        let editingId = null;
+        let tasksCache = [];
+        let searchTerm = '';
+        let filterStatus = 'all';
+        let filterPriority = 'all';
+        let sortOption = 'due';
+
+        function applyTaskFilters(tasks) {
+            return tasks
+                .filter(task => {
+                    const textMatch = [task.title, task.description, task.category]
+                        .filter(Boolean)
+                        .join(' ')
+                        .toLowerCase()
+                        .includes(searchTerm.toLowerCase());
+                    const statusMatch = filterStatus === 'all' || task.status === filterStatus;
+                    const priorityMatch = filterPriority === 'all' || task.priority === filterPriority;
+                    return textMatch && statusMatch && priorityMatch;
+                })
+                .sort((a, b) => {
+                    if (sortOption === 'priority') {
+                        const order = { high: 0, medium: 1, low: 2 };
+                        return (order[a.priority] || 3) - (order[b.priority] || 3);
+                    }
+                    if (sortOption === 'created') {
+                        return new Date(b.createdAt) - new Date(a.createdAt);
+                    }
+                    return new Date(a.dueTime || a.createdAt) - new Date(b.dueTime || b.createdAt);
+                });
+        }
+
+        async function fetchTasks() {
+            try {
+                const res = await fetch(API_URL);
+                if (!res.ok) {
+                    throw new Error(`Unable to load tasks (${res.status})`);
+                }
+                tasksCache = await res.json();
+                renderTasks(tasksCache);
+            } catch (err) {
+                console.error(err);
+                alert('Unable to load tasks. Make sure the server is running on http://localhost:3000');
+            }
+        }
+
+        function formatDateTime(value) {
+            if (!value) return '';
+            const date = new Date(value);
+            if (isNaN(date)) return value;
+            return date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+        }
+
+        // Render tasks
+        function renderTasks(tasks) {
+            const list = document.getElementById('task-list');
+            const count = document.getElementById('task-count');
+            const pendingCount = document.getElementById('pending-count');
+            const inProgressCount = document.getElementById('in-progress-count');
+            const completedCount = document.getElementById('completed-count');
+
+            const filteredTasks = applyTaskFilters(tasks);
+            list.innerHTML = '';
+            count.textContent = `${filteredTasks.length} task${filteredTasks.length === 1 ? '' : 's'}`;
+
+            const totals = filteredTasks.reduce((acc, task) => {
+                acc[task.status] = (acc[task.status] || 0) + 1;
+                return acc;
+            }, {});
+
+            pendingCount.textContent = totals.pending || 0;
+            inProgressCount.textContent = totals['in-progress'] || 0;
+            completedCount.textContent = totals.completed || 0;
+
+            filteredTasks.forEach(task => {
+                const dueChip = task.dueDate
+                    ? `<span class="meta-chip status-${task.status}">Due: ${task.dueDate}</span>`
+                    : '';
+                const priorityChip = task.priority
+                    ? `<span class="meta-chip priority-${task.priority}">${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}</span>`
+                    : '';
+                const categoryChip = task.category
+                    ? `<span class="meta-chip category-chip">${task.category}</span>`
+                    : '';
+                const startChip = task.startTime
+                    ? `<span class="meta-chip status-${task.status}">Started: ${formatDateTime(task.startTime)}</span>`
+                    : '';
+                const autoCompleteChip = task.dueTime && task.status !== 'completed'
+                    ? `<span class="meta-chip status-${task.status}">Auto-complete: ${formatDateTime(task.dueTime)}</span>`
+                    : '';
+                const completedChip = task.completedAt
+                    ? `<span class="meta-chip status-${task.status}">Completed: ${formatDateTime(task.completedAt)}</span>`
+                    : '';
+                const createdChip = task.createdAt
+                    ? `<span class="meta-chip created-chip">Created: ${formatDateTime(task.createdAt)}</span>`
+                    : '';
+                const statusLabel = `<span class="meta-chip status-${task.status}">${task.status.replace('-', ' ')}</span>`;
+
+                const li = document.createElement('li');
+                li.className = `task-item ${task.status === 'completed' ? 'completed' : ''}`;
+                li.innerHTML = `
+                    <div class="task-card-top">
+                        <strong>${task.title}</strong>
+                        ${statusLabel}
+                    </div>
+                    ${task.description ? `<p>${task.description}</p>` : ''}
+                    <div class="task-meta">
+                        ${priorityChip}
+                        ${categoryChip}
+                        ${dueChip}
+                        ${startChip}
+                        ${autoCompleteChip}
+                        ${completedChip}
+                        ${createdChip}
+                    </div>
+                    <div class="task-actions">
+                        <button class="edit-btn" onclick="editTask('${task.id}')">Edit</button>
+                        <button class="delete-btn" onclick="deleteTask('${task.id}')">Delete</button>
+                    </div>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        async function submitTaskForm(e) {
+            e.preventDefault();
+            const titleInput = document.getElementById('title');
+            const title = titleInput.value.trim();
+            const description = document.getElementById('description').value.trim();
+            const dueDate = document.getElementById('dueDate').value;
+            const status = document.getElementById('status').value;
+            const priority = document.getElementById('priority').value;
+            const category = document.getElementById('category').value.trim();
+
+            if (!title) {
+                alert('Please enter a title for the task.');
+                titleInput.focus();
+                return;
+            }
+
+            const taskData = { title, description, dueDate, status, priority, category };
+
+            try {
+                const url = editingId ? `${API_URL}/${editingId}` : API_URL;
+                const method = editingId ? 'PUT' : 'POST';
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(taskData)
+                });
+
+                if (!res.ok) {
+                    const errorInfo = await res.json().catch(() => ({}));
+                    throw new Error(errorInfo.error || `Request failed (${res.status})`);
+                }
+                editingId = null;
+                await fetchTasks();
+                document.getElementById('task-form').reset();
+            } catch (err) {
+                console.error(err);
+                alert(err.message || 'Unable to save task. Make sure the server is running on http://localhost:3000');
+            }
+        }
+
+        // Edit task
+        window.editTask = async (id) => {
+            try {
+                const res = await fetch(API_URL);
+                if (!res.ok) throw new Error('Failed to load task');
+                const tasks = await res.json();
+                const task = tasks.find(t => t.id === id);
+                if (task) {
+                    document.getElementById('title').value = task.title;
+                    document.getElementById('description').value = task.description || '';
+                    document.getElementById('dueDate').value = task.dueDate || '';
+                    document.getElementById('status').value = task.status;
+                    document.getElementById('priority').value = task.priority || 'medium';
+                    document.getElementById('category').value = task.category || '';
+                    editingId = id;
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Unable to edit task.');
+            }
+        };
+
+        // Delete task
+        window.deleteTask = async (id) => {
+            if (confirm('Delete this task?')) {
+                try {
+                    const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+                    if (!res.ok) throw new Error('Delete failed');
+                    await fetchTasks();
+                } catch (err) {
+                    console.error(err);
+                    alert('Unable to delete task.');
+                }
+            }
+        };
+
+        async function clearCompletedTasks() {
+            const completedTasks = tasksCache.filter(task => task.status === 'completed');
+            await Promise.all(completedTasks.map(task => fetch(`${API_URL}/${task.id}`, { method: 'DELETE' })));
+            await fetchTasks();
+        }
+
+        function refreshFilters() {
+            searchTerm = document.getElementById('task-search').value.trim();
+            filterStatus = document.getElementById('filter-status').value;
+            filterPriority = document.getElementById('filter-priority').value;
+            sortOption = document.getElementById('sort-tasks').value;
+            renderTasks(tasksCache);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('task-form').addEventListener('submit', submitTaskForm);
+            document.getElementById('task-search').addEventListener('input', refreshFilters);
+            document.getElementById('filter-status').addEventListener('change', refreshFilters);
+            document.getElementById('filter-priority').addEventListener('change', refreshFilters);
+            document.getElementById('sort-tasks').addEventListener('change', refreshFilters);
+            document.getElementById('clear-completed').addEventListener('click', clearCompletedTasks);
+            fetchTasks();
+        });
+    </script>
+</body>
+</html>
