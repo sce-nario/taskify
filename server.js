@@ -217,6 +217,7 @@ function handleApiRequest(req, res, pathName, parsedUrl) {
 }
 
 server.listen(PORT, () => {
-  console.log(`✅ Taskify Server running on http://localhost:${PORT}`);
+  console.log(`✅ Taskify Server running on port ${PORT}`);
+console.log(`📡 API Base: http://localhost:${PORT}/api/tasks`);
   console.log('📁 Tasks stored in tasks.json');
 });
