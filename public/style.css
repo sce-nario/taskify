@@ -394,3 +394,13 @@ body {
     padding: 18px;
   }
 }
+
+.highlight-updated {
+  animation: highlightUpdated 2s ease-in-out;
+}
+
+@keyframes highlightUpdated {
+  0% { box-shadow: 0 0 0 0 rgba(0, 147, 255, 0.4); }
+  25% { box-shadow: 0 0 0 12px rgba(0, 147, 255, 0.15); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 147, 255, 0); }
+}

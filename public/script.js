@@ -1,7 +1,7 @@
 ﻿// Always use the Render backend API for the deployed frontend
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? 'http://localhost:3000/api'
-  : 'https://taskify-1-ms8i.onrender.com/api';
+const API_BASE = 'https://taskify-1-ms8i.onrender.com/api';
+
+console.log('API Base:', API_BASE);
 
 console.log('API Base:', API_BASE);
 let allTasks = [];
@@ -10,6 +10,7 @@ let searchTerm = '';
 let filterStatus = 'all';
 let filterPriority = 'all';
 let sortOption = 'due';
+let targetTaskId = null;
 
 const taskForm = document.getElementById('task-form');
 const taskSearch = document.getElementById('task-search');
@@ -82,10 +83,15 @@ async function submitTaskForm(e) {
       throw new Error(errorData.error || `Request failed with status ${response.status}`);
     }
 
+    const isUpdate = Boolean(editingId);
+    const updatedTaskId = editingId;
     editingId = null;
     taskForm.querySelector('button[type="submit"]').textContent = 'Add Task';
     taskForm.reset();
     await loadTasks();
+    if (isUpdate && updatedTaskId) {
+      targetTaskId = updatedTaskId;
+    }
   } catch (error) {
     console.error('Error saving task:', error);
     alert('Unable to save task. See console for details.');
@@ -149,6 +155,7 @@ function renderTasks() {
 
   tasksToRender.forEach(task => {
     const listItem = document.createElement('li');
+    listItem.id = `task-item-${task.id}`;
     listItem.className = `task-item ${task.status === 'completed' ? 'task-completed' : ''}`;
     listItem.innerHTML = `
       <div class="task-card">
@@ -176,6 +183,10 @@ function renderTasks() {
   });
 
   updateTaskCount(tasksToRender.length);
+  if (targetTaskId) {
+    requestAnimationFrame(() => scrollToTask(targetTaskId));
+    targetTaskId = null;
+  }
 }
 
 window.editTask = function (taskId) {
@@ -191,6 +202,8 @@ window.editTask = function (taskId) {
 
   editingId = taskId;
   taskForm.querySelector('button[type="submit"]').textContent = 'Update Task';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  document.getElementById('title').focus();
 };
 
 async function toggleTask(checkbox, taskId) {
@@ -240,6 +253,15 @@ async function clearCompletedTasks() {
   await Promise.all(completed.map(task => fetch(`${API_BASE}/tasks/${task.id}`, { method: 'DELETE' })));
   allTasks = allTasks.filter(task => task.status !== 'completed');
   renderTasks();
+}
+
+function scrollToTask(taskId) {
+  const taskElement = document.getElementById(`task-item-${taskId}`);
+  if (taskElement) {
+    taskElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    taskElement.classList.add('highlight-updated');
+    setTimeout(() => taskElement.classList.remove('highlight-updated'), 2000);
+  }
 }
 
 function updateTaskCount(count) {
