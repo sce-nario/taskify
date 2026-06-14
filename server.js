@@ -5,7 +5,7 @@ const { URL } = require('url');
 
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, 'tasks.json');
-const PUBLIC_DIR = __dirname;
+const PUBLIC_DIR = path.join(__dirname, 'public');
 
 // Load tasks from JSON
 function loadTasks() {
