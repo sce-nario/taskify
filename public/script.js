@@ -1,7 +1,5 @@
-// Detect if running locally or deployed
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? 'http://localhost:3000/api'
-  : 'https://taskify-1-ms8i.onrender.com/api';
+// Always use the Render backend API for the deployed frontend
+const API_BASE = 'https://taskify-1-ms8i.onrender.com/api';
 
 console.log('API Base:', API_BASE);
 let allTasks = [];
